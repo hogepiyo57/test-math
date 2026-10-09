@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>sin²θ − sinθ + 1 の最大・最小</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --main: #1f5fd6;   /* 立体の曲線 */
+      --sine: #2a9d4b;   /* θ と t の影（床）*/
+      --para: #e07b00;   /* t と y の影（奥の壁）*/
+      --orig: #8e44ad;   /* θ と y の影（横の壁）*/
+      --ans: #d62828;    /* 最大・最小の点 */
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #ffffff;
+      color: #000;
+      font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+    }
+
+    /* ---- 問題文 ---- */
+    header {
+      flex: 0 0 auto;
+      padding: 10px 16px;
+      border-bottom: 1px solid #ddd;
+      font-size: clamp(15px, 1.8vw, 19px);
+      line-height: 1.5;
+    }
+
+    header .tag {
+      display: inline-block;
+      margin-right: 0.6em;
+      padding: 0 0.5em;
+      border: 1px solid #333;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+
+    .math {
+      font-family: "Times New Roman", "Yu Mincho", serif;
+      font-size: 1.1em;
+    }
+
+    /* ---- グラフ ---- */
+    main {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    #plot {
+      position: absolute;
+      inset: 0;
+    }
+
+    #views {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #views button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font: inherit;
+      font-size: 15px;
+      min-height: 44px;
+      padding: 6px 12px;
+      text-align: left;
+      color: #000;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid #999;
+      border-radius: 6px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    #views button .sw {
+      flex: 0 0 auto;
+      width: 18px;
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    #views button small {
+      display: block;
+      color: #555;
+      font-size: 12px;
+    }
+
+    #views button.active {
+      border-color: #000;
+      box-shadow: inset 0 0 0 2px #000;
+      font-weight: bold;
+    }
+
+    #views button.active small { font-weight: normal; }
+
+    /* ボタンを押したときに上部に出す式 */
+    #caption {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      padding: 6px 18px;
+      background: rgba(255, 255, 255, 0.95);
+      border: 2px solid #888;
+      border-radius: 8px;
+      font-family: "Times New Roman", "Yu Mincho", serif;
+      font-size: clamp(18px, 2.6vw, 28px);
+      white-space: nowrap;
+      pointer-events: none;
+      transition: opacity 0.25s;
+    }
+
+    #caption.hidden { opacity: 0; }
+
+    /* ---- 下部の操作パネル ---- */
+    footer {
+      flex: 0 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 24px;
+      padding: 8px 16px;
+      border-top: 1px solid #ddd;
+      font-size: 16px;
+    }
+
+    .slider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1 1 320px;
+    }
+
+    .slider input {
+      flex: 1 1 auto;
+      height: 44px;
+      margin: 0;
+      accent-color: #000;
+      touch-action: none;
+    }
+
+    footer button {
+      font: inherit;
+      min-height: 44px;
+      min-width: 88px;
+      padding: 4px 12px;
+      color: #000;
+      background: #fff;
+      border: 1px solid #555;
+      border-radius: 6px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .readout {
+      font-family: "Times New Roman", "Yu Mincho", serif;
+      font-size: 19px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .readout span { display: inline-block; min-width: 6.2em; }
+
+    .toggles {
+      display: flex;
+      gap: 16px;
+    }
+
+    .toggles label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 44px;
+      cursor: pointer;
+    }
+
+    .toggles input { width: 20px; height: 20px; }
+
+    @media (max-width: 760px) {
+      #caption { top: auto; bottom: 12px; }
+      #views button small { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="tag">問題</span>
+    <span class="math">0 ≦ <i>θ</i> &lt; 2π</span> のとき，関数
+    <span class="math"><i>y</i> = sin<sup>2</sup><i>θ</i> − sin<i>θ</i> + 1</span>
+    の最大値と最小値を求めよ。また，そのときの <span class="math"><i>θ</i></span> の値を求めよ。
+  </header>
+
+  <main>
+    <div id="caption" class="hidden"></div>
+    <div id="views">
+      <button data-view="3d" class="active"><span class="sw" style="background: var(--main)"></span><span>3D（全体）<small>1本の曲線と3つの影</small></span></button>
+      <button data-view="tθ"><span class="sw" style="background: var(--sine)"></span><span>θ と t<small>t = sinθ</small></span></button>
+      <button data-view="yt"><span class="sw" style="background: var(--para)"></span><span>t と y<small>放物線</small></span></button>
+      <button data-view="yθ"><span class="sw" style="background: var(--orig)"></span><span>θ と y<small>もとの関数</small></span></button>
+    </div>
+    <div id="plot"></div>
+  </main>
+
+  <footer>
+    <div class="slider">
+      <span class="math"><i>θ</i></span>
+      <input id="theta" type="range" min="0" max="119" step="1" value="20" aria-label="θ の値">
+      <button id="play">▷ 再生</button>
+    </div>
+    <div class="readout">
+      <span id="rθ"></span>
+      <span id="rt"></span>
+      <span id="ry"></span>
+    </div>
+    <div class="toggles">
+      <label><input id="showShadow" type="checkbox" checked>影</label>
+      <label><input id="showAnswer" type="checkbox" checked>最大・最小</label>
+    </div>
+  </footer>
+
+  <script>
+    const PI = Math.PI;
+    const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const C = { main: css("--main"), sine: css("--sine"), para: css("--para"), orig: css("--orig"), ans: css("--ans") };
+
+    // 座標の対応：x 軸 = t，y 軸 = θ，z 軸 = y
+    const T_RANGE = [-1.1, 1.1];
+    const TH_RANGE = [0, 2 * PI];
+    const Y_RANGE = [0, 3.2];
+    const T_WALL = T_RANGE[0];    // θ–y の影を映す壁（t = −1.1）
+    const TH_WALL = TH_RANGE[1];  // t–y の影を映す壁（θ = 2π）
+    const Y_FLOOR = Y_RANGE[0];   // θ–t の影を映す床（y = 0）
+
+    const f = theta => {
+      const t = Math.sin(theta);
+      return { t, y: t * t - t + 1 };
+    };
+
+    // ---- 曲線のデータ ----
+    const n = 361;
+    const th = [], ts = [], ys = [];
+    for (let i = 0; i < n; i++) {
+      const theta = 2 * PI * i / (n - 1);
+      const { t, y } = f(theta);
+      th.push(theta); ts.push(t); ys.push(y);
+    }
+    const fill = (len, v) => Array(len).fill(v);
+
+    const hover = "θ: %{y:.4f}<br>t: %{x:.4f}<br>y: %{z:.4f}<extra></extra>";
+    // 3つの影を映す面。p(t, θ, y) はその面に投影した点の座標 [x, y, z] を返す。
+    const walls = [
+      { name: "θ と t", color: C.sine, p: (t, theta, y) => [t, theta, Y_FLOOR] },   // 床
+      { name: "t と y", color: C.para, p: (t, theta, y) => [t, TH_WALL, y] },       // 奥の壁
+      { name: "θ と y", color: C.orig, p: (t, theta, y) => [T_WALL, theta, y] }     // 横の壁
+    ];
+    const project = (w, tA, thA, yA) => {
+      const P = tA.map((t, i) => w.p(t, thA[i], yA[i]));
+      return { x: P.map(q => q[0]), y: P.map(q => q[1]), z: P.map(q => q[2]) };
+    };
+
+    // 最大・最小の点
+    const answers = [
+      { theta: 3 * PI / 2, t: -1,  y: 3,    label: "最大値 3（θ = 3π/2）" },
+      { theta: PI / 6,     t: 0.5, y: 0.75, label: "最小値 3/4（θ = π/6）" },
+      { theta: 5 * PI / 6, t: 0.5, y: 0.75, label: "最小値 3/4（θ = 5π/6）" }
+    ];
+    // 「t と y」の視点では 2 つの最小の点が重なるので，ラベルを 1 つにまとめる
+    const answerLabels = answers.map(a => a.label);
+    const answerLabelsYT = [answers[0].label, "最小値 3/4（θ = π/6, 5π/6）", ""];
+    const aT = answers.map(a => a.t), aTh = answers.map(a => a.theta), aY = answers.map(a => a.y);
+
+    const traces = [];
+    const idx = { shadow: [], answerShadow: [], drop: [], moveShadow: [] };
+    const add = (tr, list) => { if (list) list.push(traces.length); traces.push(tr); return traces.length - 1; };
+
+    // 3つの影
+    walls.forEach(w => add({
+      type: "scatter3d", mode: "lines", ...project(w, ts, th, ys), name: w.name,
+      line: { width: 5, color: w.color }, opacity: 0.55, hoverinfo: "skip"
+    }, idx.shadow));
+    // 立体の曲線
+    add({
+      type: "scatter3d", mode: "lines", x: ts, y: th, z: ys, name: "曲線",
+      line: { width: 7, color: C.main }, hovertemplate: hover
+    });
+    // 最大・最小（立体の曲線上）
+    const ANSWER_MAIN = add({
+      type: "scatter3d", mode: "markers+text", x: aT, y: aTh, z: aY,
+      text: answerLabels, textposition: ["top center", "bottom center", "bottom center"],
+      textfont: { size: 14, color: C.ans },
+      marker: { size: 6, color: C.ans, line: { color: "#fff", width: 1 } },
+      hovertemplate: hover
+    });
+    // 最大・最小（影の上）
+    walls.forEach(w => add({
+      type: "scatter3d", mode: "markers", ...project(w, aT, aTh, aY),
+      marker: { size: 4, color: C.ans, opacity: 0.8 }, hoverinfo: "skip"
+    }, idx.answerShadow));
+    // 動く点から影へ下ろす点線
+    walls.forEach(() => add({
+      type: "scatter3d", mode: "lines", x: [], y: [], z: [],
+      line: { width: 2, color: "#555", dash: "dash" }, hoverinfo: "skip"
+    }, idx.drop));
+    // 動く点（立体の曲線上）
+    const MOVE_MAIN = add({
+      type: "scatter3d", mode: "markers", x: [], y: [], z: [],
+      marker: { size: 7, color: "#000", line: { color: "#fff", width: 1 } }, hovertemplate: hover
+    });
+    // 動く点（影の上）
+    walls.forEach(() => add({
+      type: "scatter3d", mode: "markers", x: [], y: [], z: [],
+      marker: { size: 4, color: "#000" }, hoverinfo: "skip"
+    }, idx.moveShadow));
+
+    // 影に関係するもの（3D のときだけ表示）
+    const WALL_TRACES = [...idx.shadow, ...idx.answerShadow, ...idx.drop, ...idx.moveShadow];
+
+    // ---- 目盛り ----
+    const thetaTicks = ["0", "π/6", "π/3", "π/2", "2π/3", "5π/6", "π", "7π/6", "4π/3", "3π/2", "5π/3", "11π/6", "2π"];
+    const axisCommon = { showspikes: false, backgroundcolor: "#fafafa", showbackground: true, gridcolor: "#ddd" };
+
+    const layout = {
+      margin: { l: 0, r: 0, b: 0, t: 0 },
+      showlegend: false,
+      scene: {
+        xaxis: { ...axisCommon, title: { text: "t" }, range: T_RANGE, autorange: false,
+                 tickvals: [-1, -0.5, 0, 0.5, 1], ticktext: ["−1", "−1/2", "0", "1/2", "1"] },
+        yaxis: { ...axisCommon, title: { text: "θ" }, range: TH_RANGE, autorange: false,
+                 tickvals: thetaTicks.map((_, i) => i * PI / 6), ticktext: thetaTicks },
+        zaxis: { ...axisCommon, title: { text: "y" }, range: Y_RANGE, autorange: false,
+                 tickvals: [0, 0.75, 1, 2, 3], ticktext: ["0", "3/4", "1", "2", "3"] },
+        aspectratio: { x: 1, y: 2, z: 1 }
+      }
+    };
+
+    // ---- 視点 ----
+    // 視点の移動をなめらかにするため，すべて正射影で表示する。
+    // depth は 2D 表示のときに奥行き方向になる（目盛りを消す）軸。
+    const views = {
+      "3d": { eye: { x: 1.5, y: -2.2, z: 1.4 }, up: { x: 0, y: 0, z: 1 }, depth: null,
+              caption: "<i>t</i> = sin<i>θ</i>，<i>y</i> = <i>t</i><sup>2</sup> − <i>t</i> + 1（0 ≦ <i>θ</i> &lt; 2π）", color: C.main },
+      "tθ": { eye: { x: 0, y: 0, z: -2.2 }, up: { x: 1, y: 0, z: 0 }, depth: "zaxis",
+              caption: "<i>t</i> = sin<i>θ</i>（0 ≦ <i>θ</i> &lt; 2π）", color: C.sine },
+      "yt": { eye: { x: 0, y: -2.2, z: 0 }, up: { x: 0, y: 0, z: 1 }, depth: "yaxis",
+              caption: "<i>y</i> = <i>t</i><sup>2</sup> − <i>t</i> + 1（−1 ≦ <i>t</i> ≦ 1）", color: C.para },
+      "yθ": { eye: { x: 2.2, y: 0, z: 0 }, up: { x: 0, y: 0, z: 1 }, depth: "xaxis",
+              caption: "<i>y</i> = sin<sup>2</sup><i>θ</i> − sin<i>θ</i> + 1（0 ≦ <i>θ</i> &lt; 2π）", color: C.orig }
+    };
+    const camera = v => ({ eye: v.eye, up: v.up, center: { x: 0, y: 0, z: 0 }, projection: { type: "orthographic" } });
+    layout.scene.camera = camera(views["3d"]);
+
+    const plot = document.getElementById("plot");
+    Plotly.newPlot(plot, traces, layout, { responsive: true, displaylogo: false });
+
+    // ---- 動く点 ----
+    const slider = document.getElementById("theta");
+    const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+    const thetaText = k => {               // θ = kπ/60 を表示用に
+      if (k === 0) return "0";
+      if (k % 5 === 0) {
+        const g = gcd(k, 60), p = k / g, q = 60 / g;
+        return (p === 1 ? "" : p) + "π" + (q === 1 ? "" : "/" + q);
+      }
+      return "≈ " + (k / 60).toFixed(2) + "π";
+    };
+
+    function setTheta(k) {
+      const theta = k * PI / 60;
+      const { t, y } = f(theta);
+      const P = [t, theta, y];
+      const segs = walls.map(w => w.p(...P));
+      Plotly.restyle(plot, {
+        x: [...segs.map(q => [t, q[0]]), [t], ...segs.map(q => [q[0]])],
+        y: [...segs.map(q => [theta, q[1]]), [theta], ...segs.map(q => [q[1]])],
+        z: [...segs.map(q => [y, q[2]]), [y], ...segs.map(q => [q[2]])]
+      }, [...idx.drop, MOVE_MAIN, ...idx.moveShadow]);
+      document.getElementById("rθ").innerHTML = `<i>θ</i> = ${thetaText(k)}`;
+      document.getElementById("rt").innerHTML = `<i>t</i> = ${t.toFixed(3).replace("-", "−")}`;
+      document.getElementById("ry").innerHTML = `<i>y</i> = ${y.toFixed(3)}`;
+    }
+    slider.addEventListener("input", () => { stopPlay(); setTheta(+slider.value); });
+
+    // 再生
+    const playBtn = document.getElementById("play");
+    let playing = false, last = 0, pos = +slider.value;
+    const PERIOD = 10000; // 1 周 10 秒
+    function tick(now) {
+      if (!playing) return;
+      pos = (pos + (now - last) / PERIOD * 120) % 120;
+      last = now;
+      const k = Math.floor(pos);
+      if (k !== +slider.value) { slider.value = k; setTheta(k); }
+      requestAnimationFrame(tick);
+    }
+    function stopPlay() { playing = false; playBtn.textContent = "▷ 再生"; }
+    playBtn.addEventListener("click", () => {
+      if (playing) { stopPlay(); return; }
+      playing = true; playBtn.textContent = "❚❚ 停止";
+      pos = +slider.value; last = performance.now();
+      requestAnimationFrame(tick);
+    });
+
+    // ---- 表示の切り替え ----
+    // 影は 3D のときだけ。2D では影が画面の端に線として重なって見づらいため消す。
+    let wallsOn = true;
+    const visible = () => {
+      const shadow = wallsOn && document.getElementById("showShadow").checked;
+      const answer = document.getElementById("showAnswer").checked;
+      const v = traces.map(() => true);
+      WALL_TRACES.forEach(i => (v[i] = shadow));
+      v[ANSWER_MAIN] = answer;
+      idx.answerShadow.forEach(i => (v[i] = shadow && answer));
+      return v;
+    };
+    const applyVisible = () => Plotly.restyle(plot, { visible: visible() });
+    document.querySelectorAll(".toggles input").forEach(cb => cb.addEventListener("change", applyVisible));
+
+    // ---- 視点の移動（なめらかに回転）----
+    const caption = document.getElementById("caption");
+    const hideCaption = () => caption.classList.add("hidden");
+    const norm = p => Math.hypot(p.x, p.y, p.z);
+    const lerp = (a, b, s) => a + (b - a) * s;
+    let anim = 0;
+
+    function depthAxes(depth) {
+      const u = {};
+      for (const ax of ["xaxis", "yaxis", "zaxis"]) u[`scene.${ax}.visible`] = ax !== depth;
+      return u;
+    }
+
+    function goTo(name) {
+      const target = views[name];
+      const from = plot._fullLayout.scene.camera;
+      const e0 = from.eye, u0 = from.up, e1 = target.eye, u1 = target.up;
+      const r0 = norm(e0), r1 = norm(e1);
+      const id = ++anim;
+      const start = performance.now(), DURATION = 700;
+
+      Plotly.relayout(plot, depthAxes(null));
+      // 3D へ戻るときは最初に影を出す（2D へ行くときは回転し終わってから消す）
+      if (name === "3d") { wallsOn = true; applyVisible(); }
+      Plotly.restyle(plot, { text: [name === "yt" ? answerLabelsYT : answerLabels] }, [ANSWER_MAIN]);
+      const step = now => {
+        if (id !== anim) return;
+        const s0 = Math.min(1, (now - start) / DURATION);
+        const s = s0 < 0.5 ? 2 * s0 * s0 : 1 - Math.pow(-2 * s0 + 2, 2) / 2;  // ease-in-out
+        // 向きは単位ベクトルどうしを補間し，距離は別に補間する
+        const d = { x: lerp(e0.x / r0, e1.x / r1, s), y: lerp(e0.y / r0, e1.y / r1, s), z: lerp(e0.z / r0, e1.z / r1, s) };
+        const dn = norm(d) || 1, r = lerp(r0, r1, s);
+        const eye = { x: d.x / dn * r, y: d.y / dn * r, z: d.z / dn * r };
+        const up = { x: lerp(u0.x, u1.x, s), y: lerp(u0.y, u1.y, s), z: lerp(u0.z, u1.z, s) };
+        Plotly.relayout(plot, { "scene.camera": { eye, up, center: { x: 0, y: 0, z: 0 }, projection: { type: "orthographic" } } });
+        if (s0 < 1) requestAnimationFrame(step);
+        else {
+          Plotly.relayout(plot, { "scene.camera": camera(target), ...depthAxes(target.depth) });
+          if (name !== "3d") { wallsOn = false; applyVisible(); }
+        }
+      };
+      requestAnimationFrame(step);
+    }
+
+    const buttons = document.querySelectorAll("#views button");
+    buttons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const v = views[btn.dataset.view];
+        buttons.forEach(b => b.classList.toggle("active", b === btn));
+        caption.innerHTML = v.caption;
+        caption.style.borderColor = v.color;
+        caption.classList.remove("hidden");
+        goTo(btn.dataset.view);
+      });
+    });
+
+    // グラフを手で動かしたら式を消す
+    plot.addEventListener("pointerdown", hideCaption);
+    plot.addEventListener("wheel", hideCaption, { passive: true });
+
+    setTheta(+slider.value);
+  </script>
+</body>
+</html>

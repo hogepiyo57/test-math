@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>三角関数の合成</title>
+<style>
+  :root {
+    --sin: #e07b00;    /* a sinθ と a */
+    --cos: #2a9d4b;    /* b cosθ と b */
+    --sum: #1f5fd6;    /* a sinθ + b cosθ */
+    --chk: #d62828;    /* r sin(θ+α)，r，α */
+    --ref: #9a9a9a;    /* 基準の r sinθ */
+    --line: #d0d0d0;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #fff;
+    color: #000;
+    font-family: "Hiragino Sans", "Segoe UI", "Yu Gothic", sans-serif;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  body {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    height: 100dvh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  .m { font-family: "Times New Roman", "Hiragino Mincho ProN", "Yu Mincho", serif; }
+
+  /* ---- 上部：見出しと式 ---- */
+  header {
+    padding: 8px 16px 6px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: normal;
+    color: #555;
+  }
+
+  #formula {
+    margin-top: 2px;
+    font-size: clamp(22px, 3.2vw, 34px);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow-x: auto;
+  }
+
+  #formula .rhs { color: var(--chk); }
+
+  /* ---- 本体 ---- */
+  .main {
+    display: grid;
+    gap: 12px 16px;
+    padding: 10px 16px 12px;
+    min-height: 0;
+  }
+
+  /* 横向き：左に点Pと操作，右にグラフ */
+  @media (orientation: landscape) {
+    .main {
+      grid-template-columns: clamp(270px, 30vw, 340px) 1fr;
+      grid-template-rows: auto 1fr;
+      grid-template-areas: "plane graph" "ctrl graph";
+    }
+  }
+
+  /* 縦向き：上にグラフ，下に点Pと操作 */
+  @media (orientation: portrait) {
+    .main {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+      grid-template-areas: "graph graph" "plane ctrl";
+      align-content: start;
+    }
+  }
+
+  .graph { grid-area: graph; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+  .plane { grid-area: plane; min-height: 0; }
+  .ctrl  { grid-area: ctrl;  min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+
+  svg { display: block; touch-action: none; }
+  svg text { font-family: "Times New Roman", "Hiragino Mincho ProN", "Yu Mincho", serif; }
+
+  #graph { width: 100%; height: auto; max-height: 100%; }
+  #plane { width: 100%; height: auto; max-width: 340px; margin: 0 auto; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    margin-bottom: 6px;
+    font-size: 16px;
+  }
+
+  .legend label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    cursor: pointer;
+  }
+
+  .legend input { width: 22px; height: 22px; margin: 0; }
+
+  .sw { display: inline-block; width: 26px; height: 0; border-top: 3px solid; }
+  .sw.thick { border-top-width: 6px; }
+  .sw.dash { border-top-style: dashed; }
+
+  /* 確かめる前も場所は確保しておき，グラフの位置が動かないようにする */
+  .legend .chk-only { visibility: hidden; }
+  body.checking .legend .chk-only { visibility: visible; }
+
+  #rinfo {
+    margin-top: 4px;
+    text-align: center;
+    font-size: 20px;
+    color: var(--chk);
+    visibility: hidden;
+  }
+
+  body.checking #rinfo { visibility: visible; }
+
+  /* ---- スライダー ---- */
+  .sl {
+    display: grid;
+    grid-template-columns: 1.6em 1fr 3.4em;
+    align-items: center;
+    gap: 8px;
+    font-size: 22px;
+  }
+
+  .sl output { text-align: right; font-variant-numeric: tabular-nums; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 44px;
+    margin: 0;
+    background: transparent;
+    touch-action: none;
+  }
+
+  input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: #ddd; }
+  input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: #ddd; }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 30px; height: 30px; margin-top: -12px;
+    border-radius: 50%; border: 3px solid #fff;
+    background: var(--c); box-shadow: 0 0 0 1px #777;
+  }
+
+  input[type=range]::-moz-range-thumb {
+    width: 26px; height: 26px;
+    border-radius: 50%; border: 3px solid #fff;
+    background: var(--c); box-shadow: 0 0 0 1px #777;
+  }
+
+  #aS { --c: var(--sin); }
+  #bS { --c: var(--cos); }
+
+  /* ---- ボタン ---- */
+  button {
+    font: inherit;
+    color: #000;
+    background: #fff;
+    border: 1px solid #888;
+    border-radius: 8px;
+    min-height: 44px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  button:active { background: #eee; }
+
+  .presets-title { font-size: 13px; color: #555; margin-bottom: -4px; }
+
+  .presets {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .presets button { font-size: 17px; padding: 4px 6px; white-space: nowrap; }
+
+  #check {
+    font-size: 18px;
+    font-weight: bold;
+    padding: 8px 12px;
+    color: var(--chk);
+    border: 2px solid var(--chk);
+  }
+
+  body.checking #check { color: #fff; background: var(--chk); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>三角関数の合成 ― <span class="m"><i>a</i>, <i>b</i></span> をいろいろ変えて，グラフの形を調べよう</h1>
+    <div id="formula" class="m"></div>
+  </header>
+
+  <div class="main">
+    <section class="graph">
+      <div class="legend">
+        <label><input type="checkbox" id="showSin" checked><span class="sw" style="color: var(--sin)"></span><span class="m"><i>y</i> = <i>a</i> sin<i>θ</i></span></label>
+        <label><input type="checkbox" id="showCos" checked><span class="sw" style="color: var(--cos)"></span><span class="m"><i>y</i> = <i>b</i> cos<i>θ</i></span></label>
+        <label class="chk-only"><span class="sw thick" style="color: var(--chk)"></span><span class="m"><i>y</i> = <i>r</i> sin(<i>θ</i> + <i>α</i>)</span></label>
+        <label class="chk-only"><span class="sw" style="color: var(--ref)"></span><span class="m"><i>y</i> = <i>r</i> sin<i>θ</i></span></label>
+      </div>
+      <svg id="graph" viewBox="0 0 1000 500" aria-label="グラフ"></svg>
+    </section>
+
+    <section class="plane">
+      <svg id="plane" viewBox="0 0 300 300" aria-label="点P(a, b)"></svg>
+      <div id="rinfo" class="m"></div>
+    </section>
+
+    <section class="ctrl">
+      <div class="sl"><span class="m"><i>a</i></span><input id="aS" type="range" min="-2" max="2" step="0.1" value="1"><output id="aV" class="m"></output></div>
+      <div class="sl"><span class="m"><i>b</i></span><input id="bS" type="range" min="-2" max="2" step="0.1" value="1"><output id="bV" class="m"></output></div>
+      <div class="presets-title">例を選ぶ</div>
+      <div class="presets">
+        <button class="m" data-a="1" data-b="1">sin<i>θ</i> + cos<i>θ</i></button>
+        <button class="m" data-a="s3" data-b="1">√3 sin<i>θ</i> + cos<i>θ</i></button>
+        <button class="m" data-a="1" data-b="s3">sin<i>θ</i> + √3 cos<i>θ</i></button>
+        <button class="m" data-a="1" data-b="-1">sin<i>θ</i> − cos<i>θ</i></button>
+        <button class="m" data-a="-1" data-b="s3">−sin<i>θ</i> + √3 cos<i>θ</i></button>
+        <button class="m" data-a="-s3" data-b="-1">−√3 sin<i>θ</i> − cos<i>θ</i></button>
+      </div>
+      <button id="check">確かめる：<span class="m"><i>r</i> sin(<i>θ</i> + <i>α</i>)</span> を重ねる</button>
+    </section>
+  </div>
+
+<script>
+(() => {
+  const PI = Math.PI, S3 = Math.sqrt(3);
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (parent, tag, attrs = {}) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e);
+    return e;
+  };
+  const txt = (parent, s, x, y, attrs = {}) => {
+    const t = el(parent, "text", { x, y, ...attrs });
+    t.innerHTML = s;
+    return t;
+  };
+  const set = (e, attrs) => { for (const k in attrs) e.setAttribute(k, attrs[k]); };
+  const show = (e, on) => { e.style.display = on ? "" : "none"; };
+
+  // ================= 数の表示 =================
+  // 教科書でよく出る値はそのままの形で表示する
+  const NICE = [];
+  for (const [v, s] of [[0.5, "1/2"], [1, "1"], [1.5, "3/2"], [2, "2"],
+                        [S3, "√3"], [S3 / 2, "√3/2"], [Math.SQRT2, "√2"], [Math.SQRT2 / 2, "√2/2"]]) {
+    NICE.push([v, s], [-v, "−" + s]);
+  }
+  NICE.push([0, "0"]);
+  const niceOf = v => { const h = NICE.find(([n]) => Math.abs(n - v) < 1e-9); return h ? h[1] : null; };
+  const fmtNum = v => niceOf(v) ?? v.toFixed(1).replace("-", "−");
+
+  // 係数つきの項（1 は省く）
+  const term = (c, fn) => {
+    if (Math.abs(c) < 1e-9) return null;
+    const mag = Math.abs(c);
+    return { neg: c < 0, s: (Math.abs(mag - 1) < 1e-9 ? "" : fmtNum(mag) + " ") + fn };
+  };
+  const joinTerms = terms => {
+    const ts = terms.filter(Boolean);
+    if (!ts.length) return "0";
+    return ts.map((t, i) => (i === 0 ? (t.neg ? "−" : "") : (t.neg ? " − " : " + ")) + t.s).join("");
+  };
+
+  // r = √(a²+b²) を，できれば √ の形で
+  const gcd = (x, y) => (y ? gcd(y, x % y) : x);
+  function rText(a, b) {
+    const r2 = a * a + b * b, r = Math.sqrt(r2), m = r2 * 4;
+    if (Math.abs(m - Math.round(m)) < 1e-6) {          // r = √M / 2
+      let M = Math.round(m), s = 1;
+      if (M === 0) return { s: "0", exact: true };
+      for (let k = 2; k * k <= M; k++) while (M % (k * k) === 0) { M /= k * k; s *= k; }
+      const root = M === 1 ? "" : "√" + M;
+      if (s % 2 === 0) { s /= 2; return { s: (s === 1 && root ? "" : s) + root, exact: true }; }
+      return { s: (s === 1 && root ? "" : s) + root + "/2", exact: true };
+    }
+    if (Math.abs(r * 10 - Math.round(r * 10)) < 1e-6) return { s: r.toFixed(1), exact: true };
+    return { s: r.toFixed(2), exact: false };
+  }
+
+  // α を π/12 の倍数なら π の形で
+  function alphaText(al) {
+    const k = al / (PI / 12), K = Math.round(k);
+    if (Math.abs(k - K) < 1e-6) {
+      if (K === 0) return { s: "0", exact: true, zero: true };
+      const g = gcd(Math.abs(K), 12), p = Math.abs(K) / g, q = 12 / g;
+      return { s: (p === 1 ? "" : p) + "π" + (q === 1 ? "" : "/" + q), exact: true, neg: K < 0 };
+    }
+    return { s: Math.abs(al).toFixed(2), exact: false, neg: al < 0 };
+  }
+
+  // ================= グラフ =================
+  const graph = document.getElementById("graph");
+  const TH0 = -PI, TH1 = 3 * PI;
+  const GW = 1000, GH = 500, GL = 50;
+  const U = (GW - 2 * GL) / (TH1 - TH0);   // 1 あたりのピクセル数（縦横同じ）
+  const GX = th => GL + (th - TH0) * U;
+  const GY = y => GH / 2 - y * U;
+
+  el(graph, "defs").innerHTML =
+    `<clipPath id="clip"><rect x="${GL}" y="0" width="${GW - 2 * GL}" height="${GH}"/></clipPath>` +
+    `<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">` +
+    `<path d="M0,1 L10,5 L0,9 z" fill="var(--chk)"/></marker>` +
+    `<marker id="ax" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">` +
+    `<path d="M0,1 L10,5 L0,9 z" fill="#000"/></marker>`;
+
+  // 方眼
+  const gGrid = el(graph, "g", { stroke: "#e6e6e6", "stroke-width": 1 });
+  for (let k = -2; k <= 6; k++) el(gGrid, "line", { x1: GX(k * PI / 2), y1: 0, x2: GX(k * PI / 2), y2: GH });
+  for (let y = -3; y <= 3; y++) el(gGrid, "line", { x1: GL, y1: GY(y), x2: GW - GL, y2: GY(y) });
+  // 軸
+  el(graph, "line", { x1: GL - 10, y1: GY(0), x2: GW - GL + 30, y2: GY(0), stroke: "#000", "stroke-width": 1.5, "marker-end": "url(#ax)" });
+  el(graph, "line", { x1: GX(0), y1: GH, x2: GX(0), y2: 4, stroke: "#000", "stroke-width": 1.5, "marker-end": "url(#ax)" });
+  txt(graph, "<tspan font-style='italic'>θ</tspan>", GW - GL + 30, GY(0) + 26, { "font-size": 24, "text-anchor": "end" });
+  txt(graph, "<tspan font-style='italic'>y</tspan>", GX(0) + 10, 22, { "font-size": 24 });
+  txt(graph, "O", GX(0) - 8, GY(0) + 24, { "font-size": 20, "text-anchor": "end" });
+  const thLabels = { "-2": "−π", "-1": "−π/2", "1": "π/2", "2": "π", "3": "3π/2", "4": "2π", "5": "5π/2", "6": "3π" };
+  for (const k in thLabels) txt(graph, thLabels[k], GX(k * PI / 2), GY(0) + 24, { "font-size": 19, "text-anchor": "middle" });
+  for (const y of [-3, -2, -1, 1, 2, 3]) txt(graph, String(y).replace("-", "−"), GX(0) - 8, GY(y) + 6, { "font-size": 19, "text-anchor": "end" });
+
+  const gc = el(graph, "g", { "clip-path": "url(#clip)", fill: "none" });
+  const gRef  = el(gc, "path", { stroke: "var(--ref)", "stroke-width": 2.5 });
+  const gAmp  = el(gc, "path", { stroke: "var(--chk)", "stroke-width": 1.5, "stroke-dasharray": "3 5" });
+  const gPeak = el(gc, "path", { stroke: "var(--chk)", "stroke-width": 1.5, "stroke-dasharray": "3 5" });
+  const gSin  = el(gc, "path", { stroke: "var(--sin)", "stroke-width": 3 });
+  const gCos  = el(gc, "path", { stroke: "var(--cos)", "stroke-width": 3 });
+  const gChk  = el(gc, "path", { stroke: "var(--chk)", "stroke-width": 5, "stroke-linecap": "round" });
+  const gArrow = el(graph, "line", { stroke: "var(--chk)", "stroke-width": 2.5, "marker-end": "url(#ah)" });
+  const gArrowL = txt(graph, "", 0, 0, { "font-size": 24, fill: "var(--chk)", "text-anchor": "middle", "font-style": "italic" });
+  const gRL1 = txt(graph, "", GW - GL + 4, 0, { "font-size": 22, fill: "var(--chk)", "font-style": "italic" });
+  const gRL2 = txt(graph, "", GW - GL + 4, 0, { "font-size": 22, fill: "var(--chk)", "font-style": "italic" });
+
+  const curve = fn => {
+    let d = "";
+    for (let i = 0; i <= 600; i++) {
+      const th = TH0 + (TH1 - TH0) * i / 600;
+      d += (i ? "L" : "M") + GX(th).toFixed(1) + "," + GY(fn(th)).toFixed(1);
+    }
+    return d;
+  };
+
+  // ================= 点 P(a, b) =================
+  const plane = document.getElementById("plane");
+  const PC = 150, PU = 58;          // 中心と 1 あたりのピクセル数
+  const PX = v => PC + v * PU, PY = v => PC - v * PU;
+
+  const pg = el(plane, "g", { stroke: "#e6e6e6", "stroke-width": 1 });
+  for (let k = -2; k <= 2; k++) {
+    el(pg, "line", { x1: PX(k), y1: 8, x2: PX(k), y2: 292 });
+    el(pg, "line", { x1: 8, y1: PY(k), x2: 292, y2: PY(k) });
+  }
+  el(plane, "line", { x1: 6, y1: PC, x2: 292, y2: PC, stroke: "#000", "stroke-width": 1.5, "marker-end": "url(#ax)" });
+  el(plane, "line", { x1: PC, y1: 294, x2: PC, y2: 8, stroke: "#000", "stroke-width": 1.5, "marker-end": "url(#ax)" });
+  txt(plane, "<tspan font-style='italic'>x</tspan>", 292, PC + 22, { "font-size": 20, "text-anchor": "end" });
+  txt(plane, "<tspan font-style='italic'>y</tspan>", PC + 8, 20, { "font-size": 20 });
+  txt(plane, "O", PC - 5, PC + 19, { "font-size": 17, "text-anchor": "end" });
+  for (const k of [-2, -1, 1, 2]) {
+    txt(plane, String(k).replace("-", "−"), PX(k), PC + 19, { "font-size": 14, "text-anchor": "middle", fill: "#666" });
+    txt(plane, String(k).replace("-", "−"), PC - 6, PY(k) + 5, { "font-size": 14, "text-anchor": "end", fill: "#666" });
+  }
+
+  const pCircle = el(plane, "circle", { cx: PC, cy: PC, fill: "none", stroke: "var(--chk)", "stroke-width": 1, "stroke-dasharray": "3 4", opacity: 0.6 });
+  const pDa = el(plane, "line", { stroke: "var(--sin)", "stroke-width": 1.5, "stroke-dasharray": "5 4" });
+  const pDb = el(plane, "line", { stroke: "var(--cos)", "stroke-width": 1.5, "stroke-dasharray": "5 4" });
+  const pAseg = el(plane, "line", { stroke: "var(--sin)", "stroke-width": 5, "stroke-linecap": "round" });
+  const pBseg = el(plane, "line", { stroke: "var(--cos)", "stroke-width": 5, "stroke-linecap": "round" });
+  const pOP = el(plane, "line", { x1: PC, y1: PC, stroke: "var(--chk)", "stroke-width": 3 });
+  const pArc = el(plane, "path", { fill: "none", stroke: "var(--chk)", "stroke-width": 1.8 });
+  const pAl = txt(plane, "<tspan font-style='italic'>α</tspan>", 0, 0, { "font-size": 19, fill: "var(--chk)", "text-anchor": "middle" });
+  const pR = txt(plane, "<tspan font-style='italic'>r</tspan>", 0, 0, { "font-size": 20, fill: "var(--chk)", "text-anchor": "middle" });
+  const pAt = txt(plane, "<tspan font-style='italic'>a</tspan>", 0, 0, { "font-size": 20, fill: "var(--sin)", "text-anchor": "middle" });
+  const pBt = txt(plane, "<tspan font-style='italic'>b</tspan>", 0, 0, { "font-size": 20, fill: "var(--cos)", "text-anchor": "middle" });
+  const pP = el(plane, "g", { style: "cursor: grab" });
+  el(pP, "circle", { r: 26, fill: "transparent" });             // 指でつかみやすくする範囲
+  el(pP, "circle", { r: 8, fill: "#000", stroke: "#fff", "stroke-width": 2 });
+  const pPt = txt(plane, "", 0, 0, { "font-size": 18 });
+
+  // ================= 状態と更新 =================
+  const st = { a: 1, b: 1, checking: false };
+  const aS = document.getElementById("aS"), bS = document.getElementById("bS");
+  const aV = document.getElementById("aV"), bV = document.getElementById("bV");
+  const showSin = document.getElementById("showSin");
+  const showCos = document.getElementById("showCos");
+
+  function update(fromSlider) {
+    const { a, b, checking } = st;
+    const r = Math.hypot(a, b), al = Math.atan2(b, a);
+    const zero = r < 1e-9;
+
+    // 上部の式
+    const lhs = joinTerms([term(a, "sin<i>θ</i>"), term(b, "cos<i>θ</i>")]);
+    let rhs = "";
+    if (checking) {
+      const rt = rText(a, b), at = alphaText(al);
+      const eq = rt.exact && at.exact ? "=" : "≈";
+      if (zero) rhs = " = 0";
+      else {
+        const coef = rt.s === "1" ? "" : rt.s + " ";
+        const inner = at.zero ? "sin<i>θ</i>" : `sin(<i>θ</i> ${at.neg ? "−" : "+"} ${at.s})`;
+        rhs = ` <span class="rhs">${eq} ${coef}${inner}</span>`;
+      }
+      document.getElementById("rinfo").innerHTML = zero
+        ? "<i>r</i> = 0"
+        : `<i>r</i> ${rt.exact ? "=" : "≈"} ${rt.s}，<i>α</i> ${at.exact ? "=" : "≈"} ${at.neg ? "−" : ""}${at.s}`;
+    }
+    document.getElementById("formula").innerHTML = `<i>y</i> = ${lhs}${rhs}`;
+
+    // スライダー
+    if (!fromSlider) { aS.value = a; bS.value = b; }
+    aV.textContent = fmtNum(a);
+    bV.textContent = fmtNum(b);
+
+    // グラフ
+    set(gSin, { d: curve(th => a * Math.sin(th)) });
+    set(gCos, { d: curve(th => b * Math.cos(th)) });
+    show(gSin, showSin.checked);
+    show(gCos, showCos.checked);
+
+    const chk = checking && !zero;
+    for (const e of [gChk, gRef, gAmp, gPeak, gArrow, gArrowL, gRL1, gRL2]) show(e, chk);
+    if (chk) {
+      set(gChk, { d: curve(th => r * Math.sin(th + al)) });
+      set(gRef, { d: curve(th => r * Math.sin(th)) });
+      set(gAmp, { d: `M${GL},${GY(r)}H${GW - GL}M${GL},${GY(-r)}H${GW - GL}` });
+      gRL1.setAttribute("y", GY(r) + 7);  gRL1.innerHTML = "r";
+      gRL2.setAttribute("y", GY(-r) + 7); gRL2.innerHTML = "−r";
+      // r sinθ の山（θ = π/2）から a sinθ + b cosθ の山（θ = π/2 − α）へ
+      const p0 = PI / 2, p1 = PI / 2 - al;
+      const ay = Math.min(r + 0.4, 3.3);
+      set(gPeak, { d: `M${GX(p0)},${GY(r)}V${GY(ay)}M${GX(p1)},${GY(r)}V${GY(ay)}` });
+      const big = Math.abs(al) > 0.12;
+      show(gArrow, big);
+      set(gArrow, { x1: GX(p0), y1: GY(ay), x2: GX(p1), y2: GY(ay) });
+      set(gArrowL, { x: (GX(p0) + GX(p1)) / 2, y: GY(ay) - 8 });
+      gArrowL.textContent = "α";
+    }
+
+    // 点 P
+    const x = PX(a), y = PY(b);
+    pP.setAttribute("transform", `translate(${x},${y})`);
+    set(pCircle, { r: r * PU });
+    set(pDa, { x1: x, y1: y, x2: x, y2: PC });
+    set(pDb, { x1: x, y1: y, x2: PC, y2: y });
+    set(pAseg, { x1: PC, y1: PC, x2: x, y2: PC });
+    set(pBseg, { x1: PC, y1: PC, x2: PC, y2: y });
+    set(pOP, { x2: x, y2: y });
+    set(pAt, { x: x, y: PC + (b >= 0 ? 40 : -26) });
+    set(pBt, { x: PC + (a >= 0 ? -34 : 30), y: y + 6 });
+    show(pAt, Math.abs(a) > 1e-9);
+    show(pBt, Math.abs(b) > 1e-9);
+    set(pR, { x: PC + (x - PC) / 2 - 12 * Math.sin(al), y: PC + (y - PC) / 2 - 12 * Math.cos(al) + 6 });
+    show(pR, r > 0.3);
+    // 角 α の弧（x 軸の正の向きから OP まで）
+    const ar = 22;
+    if (r > 0.3 && Math.abs(al) > 1e-6) {
+      const ex = PC + ar * Math.cos(al), ey = PC - ar * Math.sin(al);
+      const large = Math.abs(al) > PI ? 1 : 0, sweep = al > 0 ? 0 : 1;
+      set(pArc, { d: `M${PC + ar},${PC} A${ar},${ar} 0 ${large} ${sweep} ${ex},${ey}` });
+      set(pAl, { x: PC + (ar + 14) * Math.cos(al / 2), y: PC - (ar + 14) * Math.sin(al / 2) + 6 });
+      show(pArc, true); show(pAl, true);
+    } else { show(pArc, false); show(pAl, false); }
+    pPt.innerHTML = `P(${fmtNum(a)}, ${fmtNum(b)})`;
+    const right = x < 200;
+    set(pPt, { x: x + (right ? 12 : -12), y: y + (b >= 0 ? -12 : 24), "text-anchor": right ? "start" : "end" });
+  }
+
+  // ---- 操作 ----
+  const snap = v => Math.max(-2, Math.min(2, Math.round(v * 10) / 10));
+  aS.addEventListener("input", () => { st.a = +aS.value; update(true); });
+  bS.addEventListener("input", () => { st.b = +bS.value; update(true); });
+  for (const cb of [showSin, showCos]) cb.addEventListener("change", () => update());
+
+  const val = s => ({ s3: S3, "-s3": -S3 }[s] ?? +s);
+  document.querySelectorAll(".presets button").forEach(btn =>
+    btn.addEventListener("click", () => { st.a = val(btn.dataset.a); st.b = val(btn.dataset.b); update(); }));
+
+  document.getElementById("check").addEventListener("click", () => {
+    st.checking = !st.checking;
+    document.body.classList.toggle("checking", st.checking);
+    update();
+  });
+
+  // 点 P のドラッグ（0.1 刻み）
+  let drag = null;
+  const toPlane = e => {
+    const p = plane.createSVGPoint();
+    p.x = e.clientX; p.y = e.clientY;
+    const q = p.matrixTransform(plane.getScreenCTM().inverse());
+    return { a: (q.x - PC) / PU, b: (PC - q.y) / PU };
+  };
+  const startDrag = e => {
+    drag = e.pointerId;
+    plane.setPointerCapture(e.pointerId);
+    moveDrag(e);
+    e.preventDefault();
+  };
+  const moveDrag = e => {
+    if (e.pointerId !== drag) return;
+    const q = toPlane(e);
+    st.a = snap(q.a); st.b = snap(q.b);
+    update();
+  };
+  const endDrag = e => { if (e.pointerId === drag) drag = null; };
+  plane.addEventListener("pointerdown", startDrag);   // 平面のどこを触っても P がそこへ移る
+  plane.addEventListener("pointermove", moveDrag);
+  plane.addEventListener("pointerup", endDrag);
+  plane.addEventListener("pointercancel", endDrag);
+
+  update();
+})();
+</script>
+</body>
+</html>

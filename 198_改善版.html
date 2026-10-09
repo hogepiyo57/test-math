@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>割線と接線</title>
+<!-- 数式は KaTeX（TeX と同じ組版）で表示する。読み込めないときは普通の文字で表示する -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+  :root {
+    --sec: #1f5fd6;   /* 割線 AB と点 B */
+    --tan: #d62828;   /* 接線 */
+    --dx:  #2a9d4b;   /* 横の差 h（x 方向）*/
+    --dy:  #e07b00;   /* 縦の差 f(a+h) − f(a)（y 方向）*/
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #fff;
+    color: #000;
+    font-family: "Hiragino Sans", "Segoe UI", "Yu Gothic", sans-serif;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  body {
+    display: grid;
+    gap: 12px 20px;
+    height: 100vh;
+    height: 100dvh;
+    padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+
+  /* 横向き：左にグラフ，右に操作パネル */
+  @media (orientation: landscape) {
+    body { grid-template-columns: minmax(0, 1fr) clamp(280px, 30vw, 350px); align-items: center; }
+  }
+
+  /* 縦向き：上にグラフ，下に操作パネル */
+  @media (orientation: portrait) {
+    body { grid-template-rows: auto 1fr; align-content: start; }
+  }
+
+  .figure { min-height: 0; min-width: 0; height: 100%; display: flex; align-items: center; justify-content: center; }
+
+  /* グラフ（SVG）と，その上に重ねる数式の層 */
+  .stage { position: relative; width: 100%; aspect-ratio: 962 / 636; }
+  @media (orientation: landscape) { .stage { height: 100%; aspect-ratio: auto; } }
+
+  #fig { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  /* 位置と大きさは JS で，SVG が実際に描かれている範囲にぴったり合わせる */
+  .overlay { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+  .lb {
+    position: absolute;
+    white-space: nowrap;
+    line-height: 1;
+    font-size: calc(var(--k, 1) * var(--fs) * 1px);
+  }
+
+  .lb .katex { font-size: 1em; }
+
+  .lb.box {
+    padding: 0.25em 0.5em;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid #999;
+    border-radius: 6px;
+  }
+
+  /* ---- 操作パネル ---- */
+  .panel { display: flex; flex-direction: column; gap: 12px; }
+
+  @media (orientation: portrait) {
+    .panel { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; align-items: start; align-content: start; }
+    .panel .full { grid-column: 1 / -1; }
+  }
+
+  .values {
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 18px;
+  }
+
+  .values .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; }
+  .values .name { font-size: 14px; color: #444; margin-top: 6px; }
+  .values .row.sec { min-height: 72px; }
+  .values .sec { color: var(--sec); }
+  .values .tan { color: var(--tan); }
+  .values .fx { font-size: 20px; min-height: 52px; }
+  .values hr { border: none; border-top: 1px solid #e3e3e3; margin: 4px 0; }
+
+  button {
+    font: inherit;
+    color: #000;
+    background: #fff;
+    border: 1px solid #888;
+    border-radius: 8px;
+    min-height: 48px;
+    padding: 4px 12px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  button:active { background: #eee; }
+
+  #approach { font-size: 19px; font-weight: bold; color: var(--sec); border: 2px solid var(--sec); }
+  #approach.on { color: #fff; background: var(--sec); }
+
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btns button { font-size: 16px; }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .toggle input { width: 24px; height: 24px; margin: 0; flex: 0 0 auto; }
+
+  .note { margin: 0; font-size: 15px; line-height: 1.8; color: #333; }
+</style>
+</head>
+<body>
+  <div class="figure">
+    <div class="stage" id="stage">
+      <svg id="fig" viewBox="0 0 962 636" aria-label="放物線と割線・接線"></svg>
+      <div class="overlay" id="ov"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="values full">
+      <div class="row fx" data-tex="f(x)=\dfrac{1}{4}x^2+\dfrac{1}{2}x+1"></div>
+      <hr>
+      <div class="row"><span id="vA"></span><span id="vB"></span></div>
+      <div class="row"><span id="vH"></span></div>
+      <hr>
+      <div class="name">直線 AB の傾き</div>
+      <div class="row sec"><span id="vSec"></span></div>
+      <div class="name">点 A における接線の傾き</div>
+      <div class="row tan"><span id="vTan"></span></div>
+    </div>
+    <button id="approach" class="full">▶ B を A に近づける</button>
+    <div class="btns">
+      <button id="away">B を離す</button>
+      <button id="reset">リセット</button>
+    </div>
+    <div>
+      <label class="toggle"><input type="checkbox" id="showTan" checked>接線を表示</label>
+      <label class="toggle"><input type="checkbox" id="showTri" checked>傾きの三角形を表示</label>
+    </div>
+    <p class="note full">
+      点 <span data-tex="\mathrm{A}"></span>・点 <span data-tex="\mathrm{B}"></span> は曲線に沿って動かせます。
+      <span data-tex="\mathrm{B}"></span> を <span data-tex="\mathrm{A}"></span> に近づける
+      （<span data-tex="h \to 0"></span>）と，直線 AB の傾きはどうなるでしょうか。
+    </p>
+  </div>
+
+<script>
+(() => {
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const COL = { sec: css("--sec"), tan: css("--tan"), dx: css("--dx"), dy: css("--dy") };
+  const VW = 962, VH = 636;   // グラフの大きさ（viewBox）
+
+  // ================= 数式の表示 =================
+  // KaTeX が読み込めなかったときのための，ふつうの文字への置き換え
+  const plain = t => t
+    .replace(/\\d?frac\{([^{}]*(\{[^{}]*\})?[^{}]*)\}\{([^{}]*(\{[^{}]*\})?[^{}]*)\}/g, "($1)/($3)")
+    .replace(/\\mathrm\{([^}]*)\}/g, "$1").replace(/\\to/g, "→").replace(/\\approx/g, "≈")
+    .replace(/\\left|\\right|\\,|\\ /g, "").replace(/\^\{?2\}?/g, "²")
+    .replace(/[{}]/g, "").replace(/-/g, "−");
+  const render = (el, t) => {
+    if (window.katex) katex.render(t, el, { throwOnError: false });
+    else el.textContent = plain(t);
+  };
+  document.querySelectorAll("[data-tex]").forEach(e => render(e, e.dataset.tex));
+
+  // グラフの上に重ねる数式ラベル。(x, y) は viewBox の座標で，y は文字の下端（ベースライン）あたり。
+  const ov = document.getElementById("ov");
+  const SHIFT = { start: "0", middle: "-50%", end: "-100%" };
+  function lab(tex, x, y, { size = 18, color = "#000", anchor = "start", cls = "" } = {}) {
+    const d = document.createElement("div");
+    d.className = "lb " + cls;
+    d.style.setProperty("--fs", size);
+    d.style.color = color;
+    ov.appendChild(d);
+    const o = {
+      tex: null,
+      setTex(t) { if (t !== this.tex) { this.tex = t; render(d, t); } return this; },
+      pos(x, y, a = anchor) {
+        d.style.left = (x / VW * 100) + "%";
+        d.style.top = ((y - 0.35 * size) / VH * 100) + "%";
+        d.style.transform = `translate(${SHIFT[a]}, -50%)`;
+        return this;
+      },
+      show(on) { d.style.display = on ? "" : "none"; return this; }
+    };
+    return o.setTex(tex).pos(x, y);
+  }
+  // SVG は箱の中で縦横比を保って中央に描かれるので，数式の層も同じ範囲に重ねる
+  const stage = document.getElementById("stage");
+  function fitOverlay() {
+    const w = stage.clientWidth, h = stage.clientHeight, k = Math.min(w / VW, h / VH);
+    Object.assign(ov.style, {
+      left: (w - VW * k) / 2 + "px", top: (h - VH * k) / 2 + "px",
+      width: VW * k + "px", height: VH * k + "px"
+    });
+    stage.style.setProperty("--k", k);
+  }
+  new ResizeObserver(fitOverlay).observe(stage);
+  fitOverlay();
+
+  // ================= 座標 =================
+  const K = 70.07;                  // 1 あたりのピクセル数（元の GeoGebra と同じ）
+  const X0 = 320.93, Y0 = 461.97;   // 原点の位置
+  const X = x => X0 + x * K;
+  const Y = y => Y0 - y * K;
+  const xMin = -X0 / K, xMax = (VW - X0) / K;
+  const yMin = -(VH - Y0) / K, yMax = Y0 / K;
+
+  const f  = x => x * x / 4 + x / 2 + 1;
+  const df = x => x / 2 + 1 / 2;
+
+  const svg = document.getElementById("fig");
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs = {}, parent = svg) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e);
+    return e;
+  };
+  const set = (e, attrs) => { for (const k in attrs) e.setAttribute(k, attrs[k]); };
+  const show = (e, on) => { e.style.display = on ? "" : "none"; };
+
+  // ---- 方眼と座標軸 ----
+  for (let i = Math.ceil(xMin * 5); i <= xMax * 5; i++) {
+    el("line", { x1: X(i / 5), y1: 0, x2: X(i / 5), y2: VH, stroke: i % 5 ? "#f0f0f0" : "#d6d6d6", "stroke-width": 1 });
+  }
+  for (let j = Math.ceil(yMin * 5); j <= yMax * 5; j++) {
+    el("line", { x1: 0, y1: Y(j / 5), x2: VW, y2: Y(j / 5), stroke: j % 5 ? "#f0f0f0" : "#d6d6d6", "stroke-width": 1 });
+  }
+  el("defs").innerHTML =
+    '<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">' +
+    '<path d="M0,1 L10,5 L0,9 z" fill="#000"/></marker>' +
+    `<clipPath id="clip"><rect x="0" y="0" width="${VW}" height="${VH}"/></clipPath>`;
+  el("line", { x1: 0, y1: Y(0), x2: VW - 2, y2: Y(0), stroke: "#000", "stroke-width": 1.5, "marker-end": "url(#arr)" });
+  el("line", { x1: X(0), y1: VH, x2: X(0), y2: 2, stroke: "#000", "stroke-width": 1.5, "marker-end": "url(#arr)" });
+  lab("x", VW - 8, Y(0) - 10, { size: 22, anchor: "end" });
+  lab("y", X(0) + 10, 26, { size: 22 });
+  lab("\\mathrm{O}", X(0) - 6, Y(0) + 22, { size: 17, anchor: "end" });
+  for (let i = Math.ceil(xMin); i <= xMax; i++) {
+    if (i) lab(String(i), X(i), Y(0) + 22, { size: 18, color: "#444", anchor: "middle" });
+  }
+  for (let j = Math.ceil(yMin); j <= yMax; j++) {
+    if (j) lab(String(j), X(0) - 7, Y(j) + 6, { size: 18, color: "#444", anchor: "end" });
+  }
+
+  // ---- 放物線 ----
+  let d = "";
+  for (let i = 0; i <= 600; i++) {
+    const x = xMin + (xMax - xMin) * i / 600;
+    d += (i ? "L" : "M") + X(x).toFixed(1) + "," + Y(f(x)).toFixed(1);
+  }
+  el("path", { d, fill: "none", stroke: "#222", "stroke-width": 3, "clip-path": "url(#clip)" });
+  lab("y=\\dfrac{1}{4}x^2+\\dfrac{1}{2}x+1", 16, 54, { size: 24, cls: "box" });
+
+  // ---- 直線（画面いっぱいに引く）----
+  const setLine = (l, slope, px, py) => set(l, {
+    x1: X(xMin), y1: Y(py + slope * (xMin - px)),
+    x2: X(xMax), y2: Y(py + slope * (xMax - px))
+  });
+  const tangent = el("line", { stroke: COL.tan, "stroke-width": 3, "stroke-dasharray": "12 8", "clip-path": "url(#clip)" });
+  const secant  = el("line", { stroke: COL.sec, "stroke-width": 3, "clip-path": "url(#clip)" });
+
+  // ---- 傾きの三角形 ----
+  const triH = el("line", { stroke: COL.dx, "stroke-width": 5, "stroke-linecap": "round" });
+  const triV = el("line", { stroke: COL.dy, "stroke-width": 5, "stroke-linecap": "round" });
+  const labH = lab("h", 0, 0, { size: 22, color: COL.dx, anchor: "middle" });
+  const labV = lab("f(a+h)-f(a)", 0, 0, { size: 20, color: COL.dy });
+
+  // ---- 動かせる点 ----
+  const mkPoint = (fill, stroke) => {
+    const g = el("g", { style: "cursor: grab" });
+    el("circle", { r: 30, fill: "transparent" }, g);   // 指でつかみやすくするための透明な範囲
+    el("circle", { r: 8, fill, stroke, "stroke-width": 2 }, g);
+    return g;
+  };
+  const gA = mkPoint("#000", "#fff");
+  const gB = mkPoint(COL.sec, "#fff");
+  const labA = lab("\\mathrm{A}", 0, 0, { size: 24 });
+  const labB = lab("\\mathrm{B}", 0, 0, { size: 24, color: COL.sec });
+
+  // ================= 状態と描画 =================
+  const A0 = 1, B0 = 3.2;            // はじめの位置（元の GeoGebra とほぼ同じ）
+  let a = A0, b = B0;
+  const showTan = document.getElementById("showTan");
+  const showTri = document.getElementById("showTri");
+  const $ = id => document.getElementById(id);
+  const num = (v, n) => (Math.abs(v) < 0.5 * Math.pow(10, -n) ? 0 : v).toFixed(n);
+  // h が小さくなったら桁を増やして，近づく様子が見えるように
+  const digitsFor = h => Math.min(6, Math.max(2, Math.ceil(-Math.log10(Math.abs(h) || 1e-6)) + 2));
+
+  function draw() {
+    const fa = f(a), fb = f(b), h = b - a;
+    const same = Math.abs(h) < 1e-9;
+
+    for (const [g, x, y] of [[gA, a, fa], [gB, b, fb]]) g.setAttribute("transform", `translate(${X(x)},${Y(y)})`);
+    labA.pos(X(a) - 12, Y(fa) - 12, "end");
+    labB.pos(X(b) + 12, Y(fb) - 12, "start");
+
+    setLine(tangent, df(a), a, fa);
+    show(tangent, showTan.checked);
+    show(secant, !same);
+    if (!same) setLine(secant, (fb - fa) / h, a, fa);
+
+    // 傾きの三角形：A から横に h，そこから縦に f(a+h) − f(a)
+    const tri = showTri.checked && Math.abs(h) > 0.02;
+    show(triH, tri); show(triV, tri);
+    set(triH, { x1: X(a), y1: Y(fa), x2: X(b), y2: Y(fa) });
+    set(triV, { x1: X(b), y1: Y(fa), x2: X(b), y2: Y(fb) });
+    const big = tri && Math.abs(h) > 0.45 && Math.abs(fb - fa) > 0.35;
+    labH.show(big).pos((X(a) + X(b)) / 2, Y(fa) + (fb >= fa ? 28 : -12));
+    labV.show(big).pos(X(b) + (h > 0 ? 12 : -12), (Y(fa) + Y(fb)) / 2 + 8, h > 0 ? "start" : "end");
+
+    // 値
+    const dg = digitsFor(h);
+    render($("vA"), `\\mathrm{A}\\left(${num(a, 2)},\\ ${num(fa, 2)}\\right)`);
+    render($("vB"), `\\mathrm{B}\\left(${num(b, 2)},\\ ${num(fb, 2)}\\right)`);
+    render($("vH"), `\\textcolor{${COL.dx}}{h} = b - a = \\textcolor{${COL.dx}}{${num(h, dg)}}`);
+    render($("vSec"), same
+      ? "\\text{（B が A と重なるので引けない）}"
+      : `\\dfrac{\\textcolor{${COL.dy}}{f(a+h)-f(a)}}{\\textcolor{${COL.dx}}{h}} = ${num((fb - fa) / h, Math.max(4, dg))}`);
+    render($("vTan"), `${num(df(a), Math.max(4, dg))}`);
+  }
+
+  // ================= 操作 =================
+  // ドラッグ：A は 0.1 刻み，B は 0.01 刻み
+  const round = (v, s) => Math.round(v / s) * s;
+  // 曲線が画面の上からはみ出さない範囲（f(x) ≦ 上端）に限る
+  const xRight = -1 + Math.sqrt(1 - 4 * (1 - yMax + 0.15)) ;
+  const clampX = v => Math.min(xRight, Math.max(xMin + 0.1, v));
+  let drag = null, dragWho = null;
+  const toX = e => {
+    const p = svg.createSVGPoint();
+    p.x = e.clientX; p.y = e.clientY;
+    return p.matrixTransform(svg.getScreenCTM().inverse());
+  };
+  svg.addEventListener("pointerdown", e => {
+    const q = toX(e);
+    const dA = Math.hypot(q.x - X(a), q.y - Y(f(a)));
+    const dB = Math.hypot(q.x - X(b), q.y - Y(f(b)));
+    const R = 34;
+    if (Math.min(dA, dB) > R) return;
+    dragWho = dB <= dA ? "B" : "A";      // 重なったときは B を優先
+    drag = e.pointerId;
+    svg.setPointerCapture(e.pointerId);
+    stopAnim();
+    e.preventDefault();
+  });
+  svg.addEventListener("pointermove", e => {
+    if (e.pointerId !== drag) return;
+    const x = clampX((toX(e).x - X0) / K);
+    if (dragWho === "A") a = round(x, 0.1); else b = round(x, 0.01);
+    draw();
+  });
+  const end = e => { if (e.pointerId === drag) drag = null; };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+
+  // B を A に近づける：h を一定の割合で小さくしていく（h → 0）
+  const approachBtn = $("approach");
+  let animId = 0;
+  function stopAnim() {
+    animId++;
+    approachBtn.classList.remove("on");
+    approachBtn.textContent = "▶ B を A に近づける";
+  }
+  function animateH(toH, duration) {
+    const id = ++animId;
+    const h0 = b - a || 2, start = performance.now();
+    const sign = Math.sign(h0);
+    const H1 = Math.abs(toH), H0 = Math.abs(h0);
+    approachBtn.classList.add("on");
+    approachBtn.textContent = "■ 止める";
+    const frame = now => {
+      if (id !== animId) return;
+      const t = Math.min(1, (now - start) / duration);
+      b = a + sign * H0 * Math.pow(H1 / H0, t);   // 指数的に近づける
+      draw();
+      if (t < 1) requestAnimationFrame(frame);
+      else stopAnim();
+    };
+    requestAnimationFrame(frame);
+  }
+  approachBtn.addEventListener("click", () => {
+    if (approachBtn.classList.contains("on")) { stopAnim(); return; }
+    if (Math.abs(b - a) <= 0.0011) b = a + 2.2;   // もう十分近いときは離してから
+    animateH(0.001, 5000);
+  });
+  $("away").addEventListener("click", () => { stopAnim(); b = clampX(a + (Math.sign(b - a) || 1) * 2.2); draw(); });
+  $("reset").addEventListener("click", () => { stopAnim(); a = A0; b = B0; draw(); });
+  showTan.addEventListener("change", draw);
+  showTri.addEventListener("change", draw);
+
+  draw();
+})();
+</script>
+</body>
+</html>

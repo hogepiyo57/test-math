@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>単位円とsin・cosのグラフ</title>
+<!-- 数式は KaTeX（TeX と同じ組版）で表示する。読み込めないときは普通の文字で表示する -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+  :root {
+    --sin: #e07b00;   /* sin（P の y 座標）*/
+    --cos: #2a9d4b;   /* cos（P の x 座標）*/
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #fff;
+    color: #000;
+    font-family: "Hiragino Sans", "Segoe UI", "Yu Gothic", sans-serif;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  body {
+    display: grid;
+    gap: 12px 20px;
+    height: 100vh;
+    height: 100dvh;
+    padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+
+  /* 横向き：左に図，右に操作パネル */
+  @media (orientation: landscape) {
+    body { grid-template-columns: 1fr clamp(260px, 28vw, 330px); align-items: center; }
+  }
+
+  /* 縦向き：上に図，下に操作パネル */
+  @media (orientation: portrait) {
+    body { grid-template-rows: auto 1fr; align-content: start; }
+  }
+
+  .figure { min-height: 0; min-width: 0; height: 100%; display: flex; align-items: center; justify-content: center; }
+
+  /* 図（SVG）と，その上に重ねる数式の層 */
+  .stage { position: relative; aspect-ratio: 625 / 628; width: 100%; }
+  @media (orientation: landscape) { .stage { width: 100%; height: 100%; aspect-ratio: auto; } }
+
+  #fig { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  /* 位置と大きさは JS で，SVG が実際に描かれている範囲にぴったり合わせる */
+  .overlay { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+  .lb {
+    position: absolute;
+    white-space: nowrap;
+    line-height: 1;
+    font-size: calc(var(--k, 1) * var(--fs) * 1px);
+  }
+
+  .lb .katex { font-size: 1em; }
+
+  /* ---- 操作パネル ---- */
+  .panel { display: flex; flex-direction: column; gap: 14px; }
+
+  @media (orientation: portrait) {
+    .panel { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; align-items: start; }
+    .panel .full { grid-column: 1 / -1; }
+  }
+
+  .slider-box .ticks {
+    position: relative;
+    height: 30px;
+    margin: 0 15px;
+    font-size: 16px;
+  }
+
+  .slider-box .ticks > span { position: absolute; bottom: 0; transform: translateX(-50%); }
+
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1 1 auto;
+    width: 100%;
+    height: 44px;
+    margin: 0;
+    background: transparent;
+    touch-action: none;
+  }
+
+  input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: #ddd; }
+  input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: #ddd; }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 30px; height: 30px; margin-top: -12px;
+    border-radius: 50%; border: 3px solid #fff;
+    background: #000; box-shadow: 0 0 0 1px #777;
+  }
+
+  input[type=range]::-moz-range-thumb {
+    width: 26px; height: 26px;
+    border-radius: 50%; border: 3px solid #fff;
+    background: #000; box-shadow: 0 0 0 1px #777;
+  }
+
+  button {
+    font: inherit;
+    color: #000;
+    background: #fff;
+    border: 1px solid #888;
+    border-radius: 8px;
+    min-height: 48px;
+    padding: 4px 12px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  button:active { background: #eee; }
+
+  #play { font-size: 24px; width: 100%; }
+  #play.on { background: #000; color: #fff; border-color: #000; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .row button { font-size: 18px; padding: 4px 4px; }
+
+  #rotate { font-size: 17px; }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    font-size: 17px;
+    cursor: pointer;
+  }
+
+  .toggle input { width: 24px; height: 24px; margin: 0; flex: 0 0 auto; }
+
+  .note {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.8;
+    color: #333;
+  }
+
+  .note .s { color: var(--sin); font-weight: bold; }
+  .note .c { color: var(--cos); font-weight: bold; }
+</style>
+</head>
+<body>
+  <div class="figure">
+    <div class="stage" id="stage">
+      <svg id="fig" viewBox="0 0 625 628" aria-label="単位円とsin・cosのグラフ"></svg>
+      <div class="overlay" id="ov"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="slider-box full">
+      <div class="ticks">
+        <span style="left: 0%" data-tex="0"></span>
+        <span style="left: 25%" data-tex="\dfrac{\pi}{2}"></span>
+        <span style="left: 50%" data-tex="\pi"></span>
+        <span style="left: 75%" data-tex="\dfrac{3\pi}{2}"></span>
+        <span style="left: 100%" data-tex="2\pi"></span>
+      </div>
+      <div class="slider-row">
+        <input id="alpha" type="range" min="0" max="6.283185307179586" step="0.005" value="0.5235987755982988" aria-label="αの値">
+      </div>
+    </div>
+    <div>
+      <button id="play">▷ 再生</button>
+    </div>
+    <div class="row">
+      <button id="back"><span data-tex="-\dfrac{\pi}{6}"></span></button>
+      <button id="fwd"><span data-tex="+\dfrac{\pi}{6}"></span></button>
+      <button id="reset">リセット</button>
+    </div>
+    <button id="rotate" class="full"><span data-tex="\cos"></span> のグラフを普段の向きにする</button>
+    <label class="toggle full"><input type="checkbox" id="trace">点の動きでグラフを描く（軌跡モード）</label>
+    <p class="note full">
+      単位円上の点 <span data-tex="\mathrm{P}"></span> を指で動かしてみよう。<br>
+      <span data-tex="\mathrm{P}"></span> の <span class="s"><span data-tex="y"></span> 座標</span> が
+      <span class="s" data-tex="y=\sin\theta"></span> のグラフに，
+      <span data-tex="\mathrm{P}"></span> の <span class="c"><span data-tex="x"></span> 座標</span> が
+      <span class="c" data-tex="y=\cos\theta"></span> のグラフに対応します。
+    </p>
+  </div>
+
+<script>
+(() => {
+  const PI = Math.PI, TAU = 2 * PI;
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const COL = { sin: css("--sin"), cos: css("--cos") };
+  const VW = 625, VH = 628;   // 図の大きさ（viewBox）
+
+  // ================= 数式の表示 =================
+  // KaTeX が読み込めなかったときのための，ふつうの文字への置き換え
+  const plain = t => t
+    .replace(/\\textcolor\{[^}]*\}\{([^{}]*(\{[^{}]*\}[^{}]*)*)\}/g, "$1")
+    .replace(/\\d?frac\{([^{}]*(\{[^{}]*\})?[^{}]*)\}\{([^{}]*)\}/g, "$1/$3")
+    .replace(/\\sqrt\{([^}]*)\}/g, "√$1")
+    .replace(/\\theta/g, "θ").replace(/\\alpha/g, "α").replace(/\\pi/g, "π")
+    .replace(/\\approx/g, "≈").replace(/\\(sin|cos)/g, "$1")
+    .replace(/\\mathrm\{([^}]*)\}/g, "$1").replace(/\\left|\\right|\\,|\\ /g, "")
+    .replace(/[{}]/g, "").replace(/-/g, "−");
+  const render = (el, t) => {
+    if (window.katex) katex.render(t, el, { throwOnError: false });
+    else el.textContent = plain(t);
+  };
+  document.querySelectorAll("[data-tex]").forEach(e => render(e, e.dataset.tex));
+
+  // 図の上に重ねる数式ラベル。(x, y) は viewBox の座標で，y は文字の下端（ベースライン）あたり。
+  const ov = document.getElementById("ov");
+  const SHIFT = { start: "0", middle: "-50%", end: "-100%" };
+  function lab(tex, x, y, { size = 18, color = "#000", anchor = "start" } = {}) {
+    const d = document.createElement("div");
+    d.className = "lb";
+    d.style.setProperty("--fs", size);
+    d.style.color = color;
+    ov.appendChild(d);
+    const o = {
+      tex: null, size,
+      setTex(t) { if (t !== this.tex) { this.tex = t; render(d, t); } return this; },
+      pos(x, y, a = anchor) {
+        d.style.left = (x / VW * 100) + "%";
+        d.style.top = ((y - 0.35 * size) / VH * 100) + "%";
+        d.style.transform = `translate(${SHIFT[a]}, -50%)`;
+        return this;
+      },
+      show(on) { d.style.display = on ? "" : "none"; return this; },
+      opacity(v) { d.style.opacity = v; return this; }
+    };
+    return o.setTex(tex).pos(x, y);
+  }
+  // 図の表示サイズに合わせて文字の大きさを変える
+  const stage = document.getElementById("stage");
+  // SVG は箱の中で縦横比を保って中央に描かれるので，数式の層も同じ範囲に重ねる
+  function fitOverlay() {
+    const w = stage.clientWidth, h = stage.clientHeight, k = Math.min(w / VW, h / VH);
+    Object.assign(ov.style, {
+      left: (w - VW * k) / 2 + "px", top: (h - VH * k) / 2 + "px",
+      width: VW * k + "px", height: VH * k + "px"
+    });
+    stage.style.setProperty("--k", k);
+  }
+  new ResizeObserver(fitOverlay).observe(stage);
+  fitOverlay();
+
+  // ================= 座標 =================
+  // 単位円もグラフも同じ縮尺（θ の 1 ラジアン = 半径 1 の長さ）
+  const K = 60;                 // 1 あたりのピクセル数
+  const X0 = 87, Y0 = 90;       // 単位円の中心
+  const S = 1.95;               // sin グラフの原点の x 座標
+  const C = 1.95;               // cos グラフの原点は（はじめは）y = −C
+  const X = x => X0 + x * K;
+  const Y = y => Y0 - y * K;
+
+  const svg = document.getElementById("fig");
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs = {}, parent = svg) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e);
+    return e;
+  };
+  const set = (e, attrs) => { for (const k in attrs) e.setAttribute(k, attrs[k]); };
+  const show = (e, on) => { e.style.display = on ? "" : "none"; };
+  const seg = (e, x1, y1, x2, y2) => set(e, { x1: X(x1), y1: Y(y1), x2: X(x2), y2: Y(y2) });
+
+  el("defs").innerHTML =
+    '<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">' +
+    '<path d="M0,1 L10,5 L0,9 z" fill="#000"/></marker>' +
+    '<marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">' +
+    '<path d="M0,1 L10,5 L0,9 z" fill="#000"/></marker>';
+
+  const axis = (x1, y1, x2, y2) =>
+    el("line", { x1: X(x1), y1: Y(y1), x2: X(x2), y2: Y(y2), stroke: "#000", "stroke-width": 1.4, "marker-end": "url(#arr)" });
+  const tick = (x1, y1, x2, y2) =>
+    el("line", { x1: X(x1), y1: Y(y1), x2: X(x2), y2: Y(y2), stroke: "#000", "stroke-width": 1.4 });
+
+  const TH_END = TAU + 0.55;    // θ 軸の矢印の先
+  const thetaTex = ["", "\\dfrac{\\pi}{2}", "\\pi", "\\dfrac{3\\pi}{2}", "2\\pi"];
+
+  // ---- cos グラフの向き（u = 0：θ 軸を下向き，u = 1：普段の向き）----
+  // cos グラフ上の点 (θ, v) を図の座標に直す。u に応じて原点のまわりに 90° 回しながら移動する。
+  // 普段の向きでは，原点を sin グラフの原点の真下に置き，y 軸の位置をそろえる。
+  let u = 0;
+  const lerp = (p, q, t) => p + (q - p) * t;
+  const O1 = [0, -C], O2 = [S, -C - 1.4];
+  const L = (th, v) => {
+    const ph = u * PI / 2, ox = lerp(O1[0], O2[0], u), oy = lerp(O1[1], O2[1], u);
+    const lx = v, ly = -th;            // 回す前：θ が下向き，v が右向き
+    return [ox + lx * Math.cos(ph) - ly * Math.sin(ph), oy + lx * Math.sin(ph) + ly * Math.cos(ph)];
+  };
+  const segL = (e, th1, v1, th2, v2) => { const [a, b] = L(th1, v1), [c, d] = L(th2, v2); seg(e, a, b, c, d); };
+
+  // ---- 補助線（y = ±1 を sin グラフへ，x = ±1 を cos グラフへ）----
+  const guide = { stroke: "#cfcfcf", "stroke-width": 1, "stroke-dasharray": "2 4" };
+  const linkC = [];      // 単位円から cos グラフへ下ろす補助線（普段の向きでは消す）
+  const guideC = [];     // cos グラフの中の補助線
+  for (const v of [1, -1]) {
+    el("line", { ...guide, x1: X(0), y1: Y(v), x2: X(S + TAU), y2: Y(v) });
+    linkC.push(el("line", { ...guide, x1: X(v), y1: Y(0), x2: X(v), y2: Y(-C) }));
+    guideC.push({ e: el("line", guide), th1: 0, v1: v, th2: TAU, v2: v });
+  }
+  for (let k = 1; k <= 4; k++) {
+    el("line", { ...guide, x1: X(S + k * PI / 2), y1: Y(-1), x2: X(S + k * PI / 2), y2: Y(1) });
+    guideC.push({ e: el("line", guide), th1: k * PI / 2, v1: -1, th2: k * PI / 2, v2: 1 });
+  }
+
+  // ---- 単位円 ----
+  axis(-1.4, 0, 1.45, 0);
+  axis(0, -1.4, 0, 1.45);
+  el("circle", { cx: X(0), cy: Y(0), r: K, fill: "none", stroke: "#000", "stroke-width": 2.5 });
+  lab("x", X(1.45) - 4, Y(0) - 8, { size: 22, anchor: "end" });
+  lab("y", X(0) + 9, Y(1.45) + 12, { size: 22 });
+  lab("\\mathrm{O}", X(0) - 6, Y(0) + 20, { size: 18, anchor: "end" });
+  lab("1", X(1) + 4, Y(0) + 20, { size: 18 });
+  lab("-1", X(-1) - 4, Y(0) + 20, { size: 18, anchor: "end" });
+  lab("1", X(0) - 6, Y(1) - 5, { size: 18, anchor: "end" });
+  lab("-1", X(0) - 6, Y(-1) + 18, { size: 18, anchor: "end" });
+
+  // ---- y = sinθ ----
+  axis(S - 0.3, 0, S + TH_END, 0);
+  axis(S, -1.45, S, 1.45);
+  lab("\\mathrm{O}", X(S) - 6, Y(0) + 20, { size: 18, anchor: "end" });
+  lab("y", X(S) + 9, Y(1.45) + 12, { size: 22 });
+  lab("\\theta", X(S + TH_END) - 2, Y(0) + 26, { size: 22, anchor: "end" });
+  for (let k = 1; k <= 4; k++) {
+    tick(S + k * PI / 2, -0.06, S + k * PI / 2, 0.06);
+    lab(thetaTex[k], X(S + k * PI / 2), Y(0) + 36, { size: 15, anchor: "middle" });
+  }
+  lab("1", X(S) - 6, Y(1) + 6, { size: 17, anchor: "end" });
+  lab("-1", X(S) - 6, Y(-1) + 6, { size: 17, anchor: "end" });
+  lab("y=\\sin\\theta", X(S + TAU) - 2, Y(1.45) + 12, { size: 21, color: COL.sin, anchor: "end" });
+
+  // ---- y = cosθ（はじめは θ 軸を下向きにとる。位置は layoutCos() で決める）----
+  const axV = axis(0, 0, 0, 0);          // y 軸（はじめは横向き）
+  const axT = axis(0, 0, 0, 0);          // θ 軸（はじめは下向き）
+  const ticksC = [1, 2, 3, 4].map(() => tick(0, 0, 0, 0));
+  // 文字は回さずに，向きに合わせて置く位置だけ変える。
+  // th, v：グラフ上の位置，o0 / o1：はじめの向き / 普段の向きでのずれ(px)，a：文字の寄せ方
+  const labelsC = [
+    ...[1, 2, 3, 4].map(k => ({ l: lab(thetaTex[k], 0, 0, { size: 15 }), th: k * PI / 2, v: 0, o0: [-8, 6], o1: [0, 36], a: ["end", "middle"] })),
+    { l: lab("1", 0, 0, { size: 17 }), th: 0, v: 1, o0: [0, -6], o1: [-6, 6], a: ["middle", "end"] },
+    { l: lab("-1", 0, 0, { size: 17 }), th: 0, v: -1, o0: [0, -6], o1: [-6, 6], a: ["middle", "end"] },
+    { l: lab("\\mathrm{O}", 0, 0, { size: 18 }), th: 0, v: 0, o0: [-6, -6], o1: [-6, 20], a: ["end", "end"] },
+    { l: lab("y", 0, 0, { size: 22 }), th: 0, v: 1.45, o0: [4, 7], o1: [9, 12], a: ["start", "start"] },
+    { l: lab("\\theta", 0, 0, { size: 22 }), th: TH_END, v: 0, o0: [-10, 4], o1: [-2, 26], a: ["end", "end"] },
+    { l: lab("y=\\cos\\theta", 0, 0, { size: 21, color: COL.cos }), th: TAU, v: 1.45, o0: [0, 6], o1: [-2, 12], a: ["start", "end"] }
+  ];
+
+  // ---- 曲線（全体と軌跡）----
+  const sinPt = t => [S + t, Math.sin(t)];
+  const cosPt = t => L(t, Math.cos(t));
+  const pathOf = (f, t0, t1) => {
+    const n = Math.max(2, Math.ceil((t1 - t0) / TAU * 360));
+    let d = "";
+    for (let i = 0; i <= n; i++) {
+      const [x, y] = f(t0 + (t1 - t0) * i / n);
+      d += (i ? "L" : "M") + X(x).toFixed(1) + "," + Y(y).toFixed(1);
+    }
+    return d;
+  };
+  const sinFull = el("path", { d: pathOf(sinPt, 0, TAU), fill: "none", stroke: COL.sin, "stroke-width": 3.5 });
+  const cosFull = el("path", { fill: "none", stroke: COL.cos, "stroke-width": 3.5 });
+  const sinTrace = el("path", { fill: "none", stroke: COL.sin, "stroke-width": 3.5 });
+  const cosTrace = el("path", { fill: "none", stroke: COL.cos, "stroke-width": 3.5 });
+
+  // ---- 動く部分 ----
+  const dashS = { stroke: COL.sin, "stroke-width": 1.6, "stroke-dasharray": "6 5" };
+  const dashC = { stroke: COL.cos, "stroke-width": 1.6, "stroke-dasharray": "6 5" };
+  const projS = el("line", dashS);                 // P → sin グラフ
+  const projC = el("line", dashC);                 // P → cos グラフ
+  const barSc = el("line", { stroke: COL.sin, "stroke-width": 6, "stroke-linecap": "round" });  // 円の中の sin
+  const barCc = el("line", { stroke: COL.cos, "stroke-width": 6, "stroke-linecap": "round" });  // 円の中の cos
+  const barSg = el("line", { stroke: COL.sin, "stroke-width": 6, "stroke-linecap": "round" });  // sin グラフ上
+  const barCg = el("line", { stroke: COL.cos, "stroke-width": 6, "stroke-linecap": "round" });  // cos グラフ上
+  const radius = el("line", { stroke: "#000", "stroke-width": 2 });
+  const arc = el("path", { fill: "none", stroke: "#000", "stroke-width": 1.6, "marker-end": "url(#arrA)" });
+  const arcS = el("path", { fill: "none", stroke: "#000", "stroke-width": 2.5 });  // θ 軸上の α（sin）
+  const arcC = el("path", { fill: "none", stroke: "#000", "stroke-width": 2.5 });  // θ 軸上の α（cos）
+  const ptB = el("circle", { r: 6.5, fill: COL.sin, stroke: "#fff", "stroke-width": 1.5 });
+  const ptC = el("circle", { r: 6.5, fill: COL.cos, stroke: "#fff", "stroke-width": 1.5 });
+  const gP = el("g", { style: "cursor: grab" });
+  el("circle", { r: 26, fill: "transparent" }, gP);              // 指でつかみやすくする範囲
+  el("circle", { r: 8, fill: "#000", stroke: "#fff", "stroke-width": 2 }, gP);
+
+  const labA = lab("\\alpha", 0, 0, { size: 20, anchor: "middle" });
+  const labB = lab("\\sin\\alpha", 0, 0, { size: 20, color: COL.sin });
+  const labC = lab("\\cos\\alpha", 0, 0, { size: 20, color: COL.cos });
+  const labP = lab("\\mathrm{P}", 0, 0, { size: 22, anchor: "middle" });
+
+  // ---- 値の表示（右下の空いている場所。cos グラフの向きに合わせて上下に動かす）----
+  // はじめの向き：右下に 1 列。普段の向き：cos グラフの下に 2 列（α, sinα / cosα, P）
+  const RX = X(S + 0.6), RY = Y(-C - 0.9), GAP = 80;
+  const NX = [X(S), X(S) + 215], NY = [Y(-C - 1.4) + 150, Y(-C - 1.4) + 240];
+  const rA = lab("", RX, RY, { size: 30 });
+  const rS = lab("", RX, RY + GAP, { size: 30, color: COL.sin });
+  const rC = lab("", RX, RY + 2 * GAP, { size: 30, color: COL.cos });
+  const rP = lab("", RX, RY + 3 * GAP, { size: 28 });
+  const readout = [rA, rS, rC, rP];
+
+  // ---- 値をきれいな形で（TeX）----
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  // α が π/6 または π/4 の倍数なら π の形で（そのとき sin, cos も正確な値で）
+  function exactAngle(a) {
+    for (const q of [6, 4]) {
+      const k = a / (PI / q), K_ = Math.round(k);
+      if (Math.abs(k - K_) < 1e-9) {
+        if (K_ === 0) return "0";
+        const g = gcd(K_, q), p = K_ / g, d = q / g;
+        const num = (p === 1 ? "" : p) + "\\pi";
+        return d === 1 ? num : `\\dfrac{${num}}{${d}}`;
+      }
+    }
+    return null;
+  }
+  const NICE = [[0, "0"], [0.5, "\\dfrac{1}{2}"], [Math.SQRT2 / 2, "\\dfrac{\\sqrt{2}}{2}"], [Math.sqrt(3) / 2, "\\dfrac{\\sqrt{3}}{2}"], [1, "1"]];
+  function exactValue(v) {
+    const h = NICE.find(([n]) => Math.abs(n - Math.abs(v)) < 1e-9);
+    if (!h) return null;
+    return (v < -1e-9 ? "-" : "") + h[1];
+  }
+  const fmt = v => (Math.abs(v) < 5e-4 ? 0 : v).toFixed(3);
+
+  // ================= 描画 =================
+  const slider = document.getElementById("alpha");
+  const traceBox = document.getElementById("trace");
+  let alpha = PI / 6;
+
+  // cos グラフの軸・目盛り・文字・曲線を，いまの向き u に合わせて置き直す
+  function layoutCos() {
+    segL(axV, 0, -1.45, 0, 1.45);
+    segL(axT, -0.3, 0, TH_END, 0);
+    ticksC.forEach((t, i) => segL(t, (i + 1) * PI / 2, -0.06, (i + 1) * PI / 2, 0.06));
+    guideC.forEach(g => segL(g.e, g.th1, g.v1, g.th2, g.v2));
+    for (const lb of labelsC) {
+      const [x, y] = L(lb.th, lb.v);
+      lb.l.pos(X(x) + lerp(lb.o0[0], lb.o1[0], u), Y(y) + lerp(lb.o0[1], lb.o1[1], u), lb.a[u < 0.5 ? 0 : 1]);
+    }
+    set(cosFull, { d: pathOf(cosPt, 0, TAU) });
+    // 単位円から下ろす線は，はじめの向きのときだけ意味がある
+    linkC.forEach(e => show(e, u === 0));
+    // 値の表示は回転中に重ならないよう，いったん薄くしてから移す
+    const op = Math.abs(1 - 2 * u);
+    readout.forEach((r, i) => r.pos(lerp(RX, NX[i % 2], u), lerp(RY + i * GAP, NY[Math.floor(i / 2)], u)).opacity(op));
+  }
+
+  function draw() {
+    const a = alpha, c = Math.cos(a), s = Math.sin(a);
+
+    // 円の中
+    seg(radius, 0, 0, c, s);
+    seg(barCc, 0, 0, c, 0);
+    seg(barSc, c, 0, c, s);
+    gP.setAttribute("transform", `translate(${X(c)},${Y(s)})`);
+    labP.pos(X(1.28 * c) + (Math.abs(c) < 0.3 ? 16 : 0), Y(1.28 * s) + 8);
+
+    // 角 α の弧
+    const r = 0.28;
+    if (a > 0.03) {
+      const large = a > PI ? 1 : 0;
+      set(arc, { d: `M${X(r)},${Y(0)} A${r * K},${r * K} 0 ${large} 0 ${X(r * Math.cos(a))},${Y(r * Math.sin(a))}` });
+      show(arc, true);
+    } else show(arc, false);
+    labA.pos(X(0.52 * Math.cos(a / 2)), Y(0.52 * Math.sin(a / 2)) + 7).show(a > 0.25);
+
+    // グラフ上の点
+    seg(projS, c, s, S + a, s);
+    seg(projC, c, s, c, -C - a);
+    show(projC, u === 0);           // 普段の向きでは P から真下に下ろせないので消す
+    seg(barSg, S + a, 0, S + a, s);
+    segL(barCg, a, 0, a, c);
+    set(ptB, { cx: X(S + a), cy: Y(s) });
+    const [cx, cy] = L(a, c);
+    set(ptC, { cx: X(cx), cy: Y(cy) });
+    // θ 軸上の 0〜α（弧の長さ = α）
+    set(arcS, { d: `M${X(S)},${Y(0)}H${X(S + a)}` });
+    const [ox, oy] = L(0, 0), [ax, ay] = L(a, 0);
+    set(arcC, { d: `M${X(ox)},${Y(oy)}L${X(ax)},${Y(ay)}` });
+
+    // ラベルは曲線にかからない側へ
+    const leftB = (s >= 0) === (c > 0);
+    labB.pos(X(S + a) + (leftB ? -10 : 10), Y(s) + (s >= 0 ? -10 : 26), leftB ? "end" : "start");
+    if (u < 0.5) {
+      const belowC = (c >= 0) === (s > 0);
+      // x が負のときは左端で切れないよう，点の真上か真下に置く
+      if (c >= 0) labC.pos(X(cx) + 10, Y(cy) + (belowC ? 26 : -10), "start");
+      else labC.pos(Math.max(X(cx), 26), Y(cy) + (belowC ? 30 : -14), "middle");
+    } else {
+      // 普段の向き：sin のグラフと同じ考え方（傾きは −sinα）
+      const leftC = (c >= 0) === (-s > 0);
+      labC.pos(X(cx) + (leftC ? -10 : 10), Y(cy) + (c >= 0 ? -10 : 26), leftC ? "end" : "start");
+    }
+
+    // 軌跡モード
+    const tr = traceBox.checked;
+    show(sinFull, !tr); show(cosFull, !tr);
+    show(sinTrace, tr); show(cosTrace, tr);
+    if (tr) {
+      set(sinTrace, { d: a > 0 ? pathOf(sinPt, 0, a) : "" });
+      set(cosTrace, { d: a > 0 ? pathOf(cosPt, 0, a) : "" });
+    }
+
+    // 値：α，sinα，cosα，P の順。P の x 座標（cos）は緑，y 座標（sin）はオレンジ
+    const ea = exactAngle(a), es = ea && exactValue(s), ec = ea && exactValue(c);
+    rA.setTex(`\\alpha ${ea ? "= " + ea : "\\approx " + a.toFixed(2)}`);
+    rS.setTex(`\\sin\\alpha ${es ? "= " + es : "\\approx " + fmt(s)}`);
+    rC.setTex(`\\cos\\alpha ${ec ? "= " + ec : "\\approx " + fmt(c)}`);
+    rP.setTex(`\\mathrm{P}\\left(\\textcolor{${COL.cos}}{${ec || fmt(c)}},\\ \\textcolor{${COL.sin}}{${es || fmt(s)}}\\right)`);
+
+    slider.value = a;
+  }
+
+  // ================= 操作 =================
+  const SNAP = 0.06;   // 代表的な角にどこまで近づいたら吸い付くか（ラジアン）
+  function snap(a) {
+    a = ((a % TAU) + TAU) % TAU;
+    for (const q of [6, 4]) {
+      const k = Math.round(a / (PI / q)), v = k * PI / q;
+      if (Math.abs(a - v) < SNAP) return v % TAU;
+    }
+    return a;
+  }
+
+  // 再生
+  const playBtn = document.getElementById("play");
+  const PERIOD = 12000;   // 1 周 12 秒
+  let playing = false, last = 0;
+  function step(now) {
+    if (!playing) return;
+    alpha += (now - last) / PERIOD * TAU;
+    last = now;
+    if (alpha >= TAU) alpha -= TAU;   // 1 周したら 0 から（軌跡も描き直し）
+    draw();
+    requestAnimationFrame(step);
+  }
+  function stop() { playing = false; playBtn.textContent = "▷ 再生"; playBtn.classList.remove("on"); }
+  playBtn.addEventListener("click", () => {
+    if (playing) { stop(); return; }
+    playing = true; playBtn.textContent = "❚❚ 停止"; playBtn.classList.add("on");
+    last = performance.now();
+    requestAnimationFrame(step);
+  });
+
+  slider.addEventListener("input", () => { stop(); alpha = snap(+slider.value); draw(); });
+  const stepBy = d => {
+    stop();
+    const k = Math.round(alpha / (PI / 6)) + d;
+    alpha = ((k % 12) + 12) % 12 * PI / 6;
+    draw();
+  };
+  document.getElementById("fwd").addEventListener("click", () => stepBy(1));
+  document.getElementById("back").addEventListener("click", () => stepBy(-1));
+  document.getElementById("reset").addEventListener("click", () => { stop(); alpha = 0; draw(); });
+  traceBox.addEventListener("change", draw);
+
+  // 点 P のドラッグ（単位円のまわりを触ると P がそこへ）
+  let drag = null;
+  const angleAt = e => {
+    const p = svg.createSVGPoint();
+    p.x = e.clientX; p.y = e.clientY;
+    const q = p.matrixTransform(svg.getScreenCTM().inverse());
+    const dx = (q.x - X0) / K, dy = (Y0 - q.y) / K;
+    return { a: Math.atan2(dy, dx), d: Math.hypot(dx, dy) };
+  };
+  svg.addEventListener("pointerdown", e => {
+    const { a, d } = angleAt(e);
+    if (d < 0.35 || d > 1.6) return;   // 単位円のまわりだけ
+    drag = e.pointerId;
+    svg.setPointerCapture(e.pointerId);
+    stop();
+    alpha = snap(a); draw();
+    e.preventDefault();
+  });
+  svg.addEventListener("pointermove", e => {
+    if (e.pointerId !== drag) return;
+    alpha = snap(angleAt(e).a); draw();
+  });
+  const end = e => { if (e.pointerId === drag) drag = null; };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+
+  // cos のグラフを普段の向きに（回転アニメーション）
+  const rotBtn = document.getElementById("rotate");
+  const rotLabel = to => `<span data-tex="\\cos"></span> のグラフを${to === 1 ? "元の向きに戻す" : "普段の向きにする"}`;
+  let rotId = 0;
+  rotBtn.addEventListener("click", () => {
+    const from = u, to = u < 0.5 ? 1 : 0;
+    const id = ++rotId, start = performance.now(), DURATION = 1400;
+    rotBtn.innerHTML = rotLabel(to);
+    rotBtn.querySelectorAll("[data-tex]").forEach(e => render(e, e.dataset.tex));
+    const frame = now => {
+      if (id !== rotId) return;
+      const t = Math.min(1, (now - start) / DURATION);
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;   // ゆっくり動き出してゆっくり止まる
+      u = lerp(from, to, e);
+      layoutCos(); draw();
+      if (t < 1) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+
+  layoutCos();
+  draw();
+})();
+</script>
+</body>
+</html>
