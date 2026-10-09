@@ -185,7 +185,7 @@
       <button id="fwd"><span data-tex="+\dfrac{\pi}{6}"></span></button>
       <button id="reset">リセット</button>
     </div>
-    <button id="rotate" class="full"><span data-tex="\cos"></span> のグラフを普段の向きにする</button>
+    <button id="rotate" class="full">余弦のグラフを普段の向きにする</button>
     <label class="toggle full"><input type="checkbox" id="trace">点の動きでグラフを描く（軌跡モード）</label>
     <p class="note full">
       単位円上の点 <span data-tex="\mathrm{P}"></span> を指で動かしてみよう。<br>
@@ -594,13 +594,12 @@
 
   // cos のグラフを普段の向きに（回転アニメーション）
   const rotBtn = document.getElementById("rotate");
-  const rotLabel = to => `<span data-tex="\\cos"></span> のグラフを${to === 1 ? "元の向きに戻す" : "普段の向きにする"}`;
+  const rotLabel = to => `余弦のグラフを${to === 1 ? "元の向きに戻す" : "普段の向きにする"}`;
   let rotId = 0;
   rotBtn.addEventListener("click", () => {
     const from = u, to = u < 0.5 ? 1 : 0;
     const id = ++rotId, start = performance.now(), DURATION = 1400;
-    rotBtn.innerHTML = rotLabel(to);
-    rotBtn.querySelectorAll("[data-tex]").forEach(e => render(e, e.dataset.tex));
+    rotBtn.textContent = rotLabel(to);
     const frame = now => {
       if (id !== rotId) return;
       const t = Math.min(1, (now - start) / DURATION);
